@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gate">
+<meta name="theme-color" content="#0e1512">
+<link rel="apple-touch-icon" href="gate-icon-180.png">
+<link rel="icon" href="gate-icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Gate</title>
+<style>
+  :root { --bg:#0e1512; --fg:#e4ede8; --muted:#94a89f; --accent:#45c79e; --warn:#ffb26b; --bad:#ff7a7a;
+          --panel:#151f1b; --line:#2c3b35; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system, system-ui, sans-serif; }
+  body { min-height:100vh; display:flex; flex-direction:column; align-items:center; gap:22px;
+         padding: max(20px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+  header { width:min(100%,420px); display:flex; justify-content:space-between; align-items:center; }
+  h1 { margin:0; font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .pill { font-size:13px; padding:5px 10px; border-radius:99px; background:var(--panel); border:1px solid var(--line); color:var(--muted); }
+  .pill.ok { color:var(--accent); border-color:rgba(69,199,158,.4); }
+  .pill.bad { color:var(--warn); border-color:rgba(255,178,107,.4); }
+
+  .status { width:min(100%,420px); background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px;
+            display:grid; grid-template-columns:auto 1fr; gap:8px 12px; font-size:15px; }
+  .status .k { color:var(--muted); }
+  .status .v { text-align:right; }
+  .v.ok { color:var(--accent); } .v.bad { color:var(--warn); }
+
+  #open { width:min(68vw,280px); aspect-ratio:1; border-radius:50%; border:none; margin-top:6px;
+          background:radial-gradient(circle at 50% 38%, #5fe0b6, var(--accent) 60%, #2a9a77);
+          color:#06231a; font-size:30px; font-weight:800; letter-spacing:.06em; cursor:pointer;
+          box-shadow:0 0 0 10px rgba(69,199,158,.12), 0 18px 50px rgba(0,0,0,.45); transition:transform .08s, filter .2s; }
+  #open:active { transform:scale(.97); }
+  #open:disabled { filter:saturate(.4) brightness(.8); }
+  #open.done { background:radial-gradient(circle at 50% 38%, #c9f7e6, #8fe8c8 60%, #45c79e); }
+  #msg { min-height:22px; font-size:16px; color:var(--muted); text-align:center; max-width:340px; }
+  #msg.ok { color:var(--accent); } #msg.err { color:var(--warn); }
+
+  .ring { width:min(100%,420px); display:none; background:#3a2a12; border:1px solid #7a5520; color:#ffd59a;
+          border-radius:14px; padding:14px 16px; font-size:16px; font-weight:600; text-align:center; }
+  .ring.show { display:block; animation:pulse 1.2s ease-in-out 4; }
+  @keyframes pulse { 50% { background:#5a3d14; } }
+
+  section { width:min(100%,420px); }
+  section h2 { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:6px 2px 8px; font-weight:600; }
+  ul { list-style:none; margin:0; padding:0; background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  li { display:flex; gap:12px; align-items:center; padding:11px 14px; border-top:1px solid var(--line); font-size:15px; }
+  li:first-child { border-top:none; }
+  li .ic { width:24px; text-align:center; }
+  li .t { margin-left:auto; color:var(--muted); font-size:13px; white-space:nowrap; }
+  li.empty { color:var(--muted); justify-content:center; }
+
+  details { width:min(100%,420px); background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 16px; }
+  summary { color:var(--muted); font-size:14px; cursor:pointer; }
+  details p { color:var(--muted); font-size:14px; line-height:1.45; margin:10px 0; }
+  code { background:#0b110f; border:1px solid var(--line); border-radius:6px; padding:2px 6px; font-size:13px; word-break:break-all; }
+  button.small { margin:4px 6px 4px 0; padding:10px 14px; border-radius:8px; border:1px solid var(--line); background:#1c2824; color:var(--fg); font-size:15px; }
+  a { color:var(--accent); }
+
+  .setup { width:min(100%,420px); background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; line-height:1.5; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Gate</h1>
+    <span class="pill" id="conn">connecting…</span>
+  </header>
+
+  <div class="setup hidden" id="setup">
+    <strong>This phone isn't set up yet.</strong><br>
+    Open the setup link (the long one that ends in <code>#k=…</code>) on this phone once. After that this page works on its own.
+  </div>
+
+  <div id="main">
+    <div class="ring" id="ring">🔔 Someone is at the gate</div>
+
+    <div class="status" id="statusBox">
+      <span class="k">House unit</span><span class="v" id="sHouse">checking…</span>
+      <span class="k">Gate link</span><span class="v" id="sGate">—</span>
+      <span class="k">Last</span><span class="v" id="sLast">—</span>
+    </div>
+  </div>
+
+  <button id="open" type="button">OPEN</button>
+  <div id="msg"></div>
+
+  <section id="logSec">
+    <h2>Last 12 hours</h2>
+    <ul id="log"><li class="empty">Nothing yet</li></ul>
+  </section>
+
+  <details id="more">
+    <summary>Ring alerts, sharing &amp; backup</summary>
+    <p><strong>Get doorbell alerts on this phone:</strong> install the free <em>ntfy</em> app, tap <strong>+</strong>, and subscribe to this channel:</p>
+    <p><code id="evtTopic">—</code> <button class="small" id="copyTopic" type="button">Copy</button></p>
+    <p><strong>Add to home screen:</strong> Share → Add to Home Screen, so it opens like an app.</p>
+    <p><strong>Give someone in the house access:</strong> send them the setup link. Anyone with that link can open the gate — only share it with family.</p>
+    <p><button class="small" id="copyLink" type="button">Copy setup link</button></p>
+    <p><strong>No internet?</strong> <a href="index.html">Open by Bluetooth</a> (Bluefy app, at the gate).</p>
+  </details>
+
+<script>
+"use strict";
+const HOST = "https://ntfy.sh";
+const $ = id => document.getElementById(id);
+
+// ---------- setup: key + channel come from the link fragment once, then live on this phone ----------
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+function readSetupLink() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (/^[0-9a-f]{32}$/.test(h.get("k") || "") && /^[0-9a-f]{16}$/.test(h.get("c") || "")) {
+    store("gateKey", h.get("k")); store("gateChan", h.get("c"));
+    history.replaceState(null, "", location.pathname);     // keep the secret out of the address bar
+    return true;
+  }
+  return false;
+}
+readSetupLink();
+// setup link tapped while the page was already open: same page, only the #part changes
+window.addEventListener("hashchange", () => { if (readSetupLink()) location.reload(); });
+const KEY = load("gateKey"), CHAN = load("gateChan");
+const T_CMD = `gate-${CHAN}-cmd`, T_EVT = `gate-${CHAN}-evt`, T_ST = `gate-${CHAN}-st`;
+
+// ---------- signing (must match house.ino: HMAC-SHA256, first 16 bytes, hex) ----------
+const hexToBytes = h => new Uint8Array(h.match(/../g).map(b => parseInt(b, 16)));
+const bytesToHex = b => Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+let hmacKey = null;
+async function sign(text) {
+  if (!hmacKey) hmacKey = await crypto.subtle.importKey("raw", hexToBytes(KEY), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", hmacKey, new TextEncoder().encode(text)));
+  return bytesToHex(mac.slice(0, 16));
+}
+async function sendCommand(what) {
+  const ts = Math.floor(Date.now() / 1000);
+  const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(8)));
+  const body = `${what}|${ts}|${nonce}`;
+  const sig = await sign(body);
+  const r = await fetch(`${HOST}/${T_CMD}`, { method: "POST", body: `${body}|${sig}` });
+  if (!r.ok) throw new Error("relay " + r.status);
+}
+
+// ---------- UI helpers ----------
+function setMsg(t, cls) { $("msg").textContent = t; $("msg").className = cls || ""; }
+function setV(id, t, cls) { $(id).textContent = t; $(id).className = "v" + (cls ? " " + cls : ""); }
+function ago(sec) {
+  if (sec < 60) return "just now";
+  if (sec < 3600) return Math.floor(sec / 60) + " min ago";
+  return Math.floor(sec / 3600) + " h ago";
+}
+function clock(t) { return new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
+
+// ---------- activity log ----------
+const seen = new Set();
+const logItems = [];
+function addLog(m) {
+  let ic = "•", text = m.message;
+  if (/someone is at the gate/i.test(text)) { ic = "🔔"; text = "Someone at the gate"; }
+  else if (/^gate opened/i.test(text)) { ic = "🔓"; text = text.replace(/^Gate opened - /i, "Opened by "); }
+  else if (/failed/i.test(text)) { ic = "⚠️"; }
+  logItems.unshift({ t: m.time, ic, text });
+  logItems.sort((a, b) => b.t - a.t);
+  logItems.length = Math.min(logItems.length, 30);
+  $("log").innerHTML = "";
+  for (const it of logItems) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="ic"></span><span class="x"></span><span class="t"></span>`;
+    li.children[0].textContent = it.ic; li.children[1].textContent = it.text; li.children[2].textContent = clock(it.t);
+    $("log").appendChild(li);
+  }
+}
+
+// ---------- the open flow ----------
+const pageStart = Math.floor(Date.now() / 1000);
+let pending = null;      // { kind, sentAt, timers }
+function finish(text, cls, done) {
+  if (pending) pending.timers.forEach(clearTimeout);
+  pending = null;
+  $("open").disabled = false;
+  setMsg(text, cls);
+  if (done) { $("open").classList.add("done"); if (navigator.vibrate) navigator.vibrate([40, 60, 40]); setTimeout(() => $("open").classList.remove("done"), 2500); }
+}
+$("open").onclick = async () => {
+  if (!KEY) return;
+  $("open").disabled = true;
+  setMsg("Sending…");
+  const sentAt = Math.floor(Date.now() / 1000);
+  pending = { kind: "open", sentAt, got: false, timers: [
+    setTimeout(() => { if (pending && !pending.got) finish("The house didn't answer — is it on WiFi?", "err"); }, 12000),
+    setTimeout(() => { if (pending) finish("No confirmation from the gate — check the house unit screen", "err"); }, 20000),
+  ]};
+  try { await sendCommand("open"); }
+  catch (e) { finish("Couldn't send — no internet on this phone?", "err"); }
+};
+
+// ---------- status ping ----------
+let pingTimer = null;
+async function ping() {
+  if (!KEY) return;
+  setV("sHouse", "checking…");
+  clearTimeout(pingTimer);
+  pingTimer = setTimeout(() => setV("sHouse", "not answering", "bad"), 10000);
+  try { await sendCommand("ping"); } catch (e) { clearTimeout(pingTimer); setV("sHouse", "no internet here", "bad"); }
+}
+function onPong(parts) {
+  clearTimeout(pingTimer);
+  const [, ok, rssi, heard, last, lastAgo] = parts;
+  setV("sHouse", "online", "ok");
+  if (heard === "-1") setV("sGate", "never heard yet", "bad");
+  else if (ok === "1") setV("sGate", `OK (${rssi} dBm)`, "ok");
+  else setV("sGate", `lost — ${ago(+heard)}`, "bad");
+  setV("sLast", last ? `${last.replace(/^Opened: /, "Opened by ")} · ${ago(+lastAgo)}` : "—");
+}
+
+// ---------- live connection to the relay ----------
+function handle(m) {
+  if (!m || (m.event && m.event !== "message")) return;
+  if (seen.has(m.id)) return;
+  seen.add(m.id);
+  const fresh = m.time >= pageStart - 2;
+  if (m.topic === T_EVT) {
+    addLog(m);
+    if (!fresh) return;
+    if (/someone is at the gate/i.test(m.message)) { if (!pending) setMsg(""); $("ring").classList.add("show"); setTimeout(() => $("ring").classList.remove("show"), 30000); }
+    if (/^gate opened/i.test(m.message)) {
+      $("ring").classList.remove("show");
+      setV("sLast", m.message.replace(/^Gate opened - /, "Opened by ") + " · just now");
+      if (pending && m.time >= pending.sentAt - 1) finish("Gate opened ✓", "ok", true);
+    }
+    if (/failed/i.test(m.message) && pending) finish("The gate didn't answer the house — check the gate box", "err");
+  } else if (m.topic === T_ST && fresh) {
+    const parts = m.message.split(";");
+    if (parts[0] === "pong") onPong(parts);
+    else if (parts[0] === "got" && pending) { pending.got = true; setMsg("House got it — opening…"); }
+    else if (parts[0] === "err") { if (pending) finish("House says: " + parts[1], "err"); else setV("sHouse", parts[1], "bad"); }
+  }
+}
+let es = null;
+function connect() {
+  if (es) es.close();
+  es = new EventSource(`${HOST}/${T_EVT},${T_ST}/sse?since=12h`);
+  es.onopen = () => { $("conn").textContent = "live"; $("conn").className = "pill ok"; };
+  es.onerror = () => {   // only complain if it hasn't come back within a few seconds
+    setTimeout(() => { if (!es || es.readyState !== 1) { $("conn").textContent = "reconnecting…"; $("conn").className = "pill bad"; } }, 5000);
+  };
+  es.onmessage = e => { try { handle(JSON.parse(e.data)); } catch (err) {} };
+}
+
+// ---------- start ----------
+if (!KEY || !CHAN) {
+  $("setup").classList.remove("hidden");
+  ["main", "open", "logSec"].forEach(id => $(id).classList.add("hidden"));
+  $("conn").textContent = "not set up";
+} else {
+  $("evtTopic").textContent = T_EVT;
+  connect();
+  ping();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { if (!es || es.readyState === 2) connect(); ping(); } });
+}
+$("copyTopic").onclick = () => navigator.clipboard.writeText(T_EVT).then(() => setMsg("Channel copied", "ok"));
+$("copyLink").onclick = () => navigator.clipboard.writeText(`${location.origin}${location.pathname}#k=${KEY}&c=${CHAN}`)
+  .then(() => setMsg("Setup link copied — only share with family", "ok"));
+</script>
+</body>
+</html>
